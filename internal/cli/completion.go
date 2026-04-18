@@ -6,7 +6,11 @@ import (
 	"strings"
 )
 
+// supportedShells lists the shells for which completion scripts are available.
+var supportedShells = []string{"bash", "zsh", "fish"}
+
 // CmdCompletion prints shell completion scripts for the given shell.
+// Supported shells are: bash, zsh, and fish.
 func CmdCompletion(shell string, w io.Writer) error {
 	switch strings.ToLower(shell) {
 	case "bash":
@@ -16,7 +20,7 @@ func CmdCompletion(shell string, w io.Writer) error {
 	case "fish":
 		fmt.Fprint(w, fishCompletion)
 	default:
-		return fmt.Errorf("unsupported shell %q: choose bash, zsh, or fish", shell)
+		return fmt.Errorf("unsupported shell %q: choose %s", shell, strings.Join(supportedShells, ", "))
 	}
 	return nil
 }
