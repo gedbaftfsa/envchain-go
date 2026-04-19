@@ -20,7 +20,8 @@ type RunOptions struct {
 }
 
 // Run loads the env set for a project and executes the given command with
-// those variables injected into the process environment.
+// those variables injected into the process environment. The current process
+// is replaced by the new command via syscall.Exec (exec-family semantics).
 func Run(st *store.Store, opts RunOptions) error {
 	if len(opts.Args) == 0 {
 		return fmt.Errorf("no command specified")
@@ -41,7 +42,10 @@ func Run(st *store.Store, opts RunOptions) error {
 
 	envSlice := env.ApplyToProcess(merged)
 
-	return syscall.Exec(cmdPath, opts.Args, envSlice)
+	if err := syscall.Exec(cmdPath, opts.Args, envSlice); err != nil {
+		return fmt.Errorf("exec %q: %w", cmdPath, err)
+	}
+	return nil
 }
 
 // RunFallback is like Run but uses exec.Cmd instead of syscall.Exec,
@@ -64,5 +68,8 @@ func RunFallback(st *store.Store, opts RunOptions, stdout, stderr *os.File) erro
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("run %q: %w", opts.Args[0], err)
+	}
+	return nil
 }
