@@ -52,6 +52,18 @@ func TestCmdTagsPrefix(t *testing.T) {
 	}
 }
 
+func TestCmdTagsNoMatch(t *testing.T) {
+	fix := seedTags(t)
+	var buf strings.Builder
+	if err := cmdTags(fix.st, fix.pass, "NONEXISTENT", &buf); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := strings.TrimSpace(buf.String())
+	if got != "" {
+		t.Errorf("expected empty output, got %q", got)
+	}
+}
+
 func TestCmdTagsWrongPassphrase(t *testing.T) {
 	fix := seedTags(t)
 	var buf strings.Builder
