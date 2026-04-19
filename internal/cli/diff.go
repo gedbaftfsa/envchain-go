@@ -11,6 +11,8 @@ import (
 )
 
 // CmdDiff prints the keys that differ between two projects.
+// Lines prefixed with '<' exist only in projectA, '>' only in projectB,
+// and '~' exist in both but have different values.
 func CmdDiff(st *store.Store, passphrase, projectA, projectB string, out io.Writer) error {
 	if out == nil {
 		out = os.Stdout
@@ -72,4 +74,26 @@ func diffKeys(a, b map[string]struct{}) (onlyA, onlyB, both []string) {
 	sort.Strings(onlyB)
 	sort.Strings(both)
 	return
+}
+
+// DiffSummary returns counts of keys only in A, only in B, and changed in both.
+func DiffSummary(st *store.Store, passphrase, projectA, projectB string) (onlyA, onlyB, changed int, err error) {
+	setA, err := st.Load(projectA, passphrase)
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("project %q: %w", projectA, err)
+	}
+	setB, err := st.Load(projectB, passphrase)
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("project %q: %w", projectB, err)
+	}
+
+	a, b, both := diffKeys(keySet(setA), keySet(setB))
+	for _, k := range both {
+		vA, _ := setA.Get(k)
+		vB, _ := setB.Get(k)
+		if vA != vB {
+			changed++
+		}
+	}
+	return len(a), len(b), changed, nil
 }
