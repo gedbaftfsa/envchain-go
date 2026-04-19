@@ -1,46 +1,49 @@
 package env
 
-import "os"
-
-// MergeOption controls how Merge handles conflicts.
-type MergeOption int
+// MergeMode controls how conflicts are resolved during a merge.
+type MergeMode int
 
 const (
-	// MergeSkip keeps existing values on conflict.
-	MergeSkip MergeOption = iota
-	// MergeOverwrite replaces existing values on conflict.
+	// MergeSkip leaves existing keys in dst untouched.
+	MergeSkip MergeMode = iota
+	// MergeOverwrite replaces existing keys in dst with values from src.
 	MergeOverwrite
 )
 
-// Merge copies variables from src into dst.
-// Behaviour on key conflicts is controlled by opt.
-func Merge(dst, src *Set, opt MergeOption) {
-	for k, v := range src.Vars {
-		if _, exists := dst.Vars[k]; exists && opt == MergeSkip {
+// Merge copies all key/value pairs from src into dst according to mode.
+// It returns the number of keys added and the number skipped.
+func Merge(dst, src *Set, mode MergeMode) (added, skipped int) {
+	for _, k := range src.Keys() {
+		v, _ := src.Get(k)
+		_, exists := dst.Get(k)
+		if exists && mode == MergeSkip {
+			skipped++
 			continue
 		}
-		dst.Vars[k] = v
+		_ = dst.Put(k, v)
+		added++
 	}
+	return
 }
 
-// ApplyToProcess sets the variables in s as environment variables
-// on the current process. Existing OS variables are not cleared.
-func ApplyToProcess(s *Set) error {
-	for k, v := range s.Vars {
-		if err := os.Setenv(k, v); err != nil {
-			return err
-		}
+// ApplyToProcess returns a slice of "KEY=VALUE" strings suitable for
+// passing to exec.Cmd.Env, merging s on top of base.
+func ApplyToProcess(base []string, s *Set) []string {
+	result := make([]string, len(base))
+	copy(result, base)
+	for _, k := range s.Keys() {
+		v, _ := s.Get(k)
+		result = append(result, k+"="+v)
 	}
-	return nil
+	return result
 }
 
-// FromProcess creates a Set populated from the current process environment
-// for the given keys. Missing keys are silently skipped.
-func FromProcess(name string, keys []string) *Set {
-	s := NewSet(name)
-	for _, k := range keys {
-		if v, ok := os.LookupEnv(k); ok {
-			s.Vars[k] = v
+// FromProcess parses a slice of "KEY=VALUE" strings into a Set.
+func FromProcess(environ []string) *Set {
+	s := NewSet()
+	for _, e := range environ {
+		if k, v, ok := ParseEntry(e); ok {
+			_ = s.Put(k, v)
 		}
 	}
 	return s

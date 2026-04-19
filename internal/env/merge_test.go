@@ -1,75 +1,62 @@
-package env_test
+package env
 
 import (
-	"os"
 	"testing"
-
-	"github.com/yourorg/envchain-go/internal/env"
 )
 
 func TestMergeOverwrite(t *testing.T) {
-	dst := env.NewSet("dst")
+	dst := NewSet()
 	_ = dst.Put("A", "old")
 
-	src := env.NewSet("src")
+	src := NewSet()
 	_ = src.Put("A", "new")
-	_ = src.Put("B", "added")
+	_ = src.Put("B", "val")
 
-	env.Merge(dst, src, env.MergeOverwrite)
-
-	if dst.Vars["A"] != "new" {
-		t.Errorf("expected A=new, got %s", dst.Vars["A"])
+	added, skipped := Merge(dst, src, MergeOverwrite)
+	if added != 2 || skipped != 0 {
+		t.Fatalf("expected added=2 skipped=0, got %d %d", added, skipped)
 	}
-	if dst.Vars["B"] != "added" {
-		t.Errorf("expected B=added, got %s", dst.Vars["B"])
+	v, _ := dst.Get("A")
+	if v != "new" {
+		t.Fatalf("expected A=new, got %s", v)
 	}
 }
 
 func TestMergeSkip(t *testing.T) {
-	dst := env.NewSet("dst")
-	_ = dst.Put("A", "original")
+	dst := NewSet()
+	_ = dst.Put("A", "old")
 
-	src := env.NewSet("src")
-	_ = src.Put("A", "overridden")
-	_ = src.Put("C", "new")
+	src := NewSet()
+	_ = src.Put("A", "new")
+	_ = src.Put("B", "val")
 
-	env.Merge(dst, src, env.MergeSkip)
-
-	if dst.Vars["A"] != "original" {
-		t.Errorf("expected A=original, got %s", dst.Vars["A"])
+	added, skipped := Merge(dst, src, MergeSkip)
+	if added != 1 || skipped != 1 {
+		t.Fatalf("expected added=1 skipped=1, got %d %d", added, skipped)
 	}
-	if dst.Vars["C"] != "new" {
-		t.Errorf("expected C=new, got %s", dst.Vars["C"])
+	v, _ := dst.Get("A")
+	if v != "old" {
+		t.Fatalf("expected A=old, got %s", v)
 	}
 }
 
 func TestApplyToProcess(t *testing.T) {
-	s := env.NewSet("test")
-	_ = s.Put("ENVCHAIN_TEST_VAR", "hello")
-
-	if err := env.ApplyToProcess(s); err != nil {
-		t.Fatalf("ApplyToProcess error: %v", err)
+	s := NewSet()
+	_ = s.Put("FOO", "bar")
+	result := ApplyToProcess([]string{"EXISTING=1"}, s)
+	if len(result) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(result))
 	}
-	if got := os.Getenv("ENVCHAIN_TEST_VAR"); got != "hello" {
-		t.Errorf("expected hello, got %s", got)
-	}
-	os.Unsetenv("ENVCHAIN_TEST_VAR")
 }
 
 func TestFromProcess(t *testing.T) {
-	os.Setenv("ENVCHAIN_PICK_A", "aaa")
-	os.Setenv("ENVCHAIN_PICK_B", "bbb")
-	defer os.Unsetenv("ENVCHAIN_PICK_A")
-	defer os.Unsetenv("ENVCHAIN_PICK_B")
-
-	s := env.FromProcess("picked", []string{"ENVCHAIN_PICK_A", "ENVCHAIN_PICK_B", "ENVCHAIN_MISSING"})
-	if s.Vars["ENVCHAIN_PICK_A"] != "aaa" {
-		t.Errorf("expected aaa")
+	s := FromProcess([]string{"KEY=val", "NOEQUALS", "X=y=z"})
+	v, ok := s.Get("KEY")
+	if !ok || v != "val" {
+		t.Fatalf("expected KEY=val")
 	}
-	if s.Vars["ENVCHAIN_PICK_B"] != "bbb" {
-		t.Errorf("expected bbb")
-	}
-	if _, ok := s.Vars["ENVCHAIN_MISSING"]; ok {
-		t.Error("missing key should not be present")
+	v2, ok2 := s.Get("X")
+	if !ok2 || v2 != "y=z" {
+		t.Fatalf("expected X=y=z")
 	}
 }
