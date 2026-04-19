@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
-	"os"
+	"sort"
 	"strings"
 
 	"github.com/envchain/envchain-go/internal/store"
@@ -76,7 +76,7 @@ func CmdUnpin(st *store.Store, project, passphrase string, keys []string, w io.W
 	return nil
 }
 
-// CmdListPinned prints the pinned keys for a project.
+// CmdListPinned prints the pinned keys for a project, sorted alphabetically.
 func CmdListPinned(st *store.Store, project, passphrase string, w io.Writer) error {
 	if project == "" {
 		return fmt.Errorf("project name required")
@@ -90,7 +90,8 @@ func CmdListPinned(st *store.Store, project, passphrase string, w io.Writer) err
 		fmt.Fprintf(w, "no pinned keys in project %q\n", project)
 		return nil
 	}
-	for k := range parsePinned(v) {
+	keys := sortedKeys(parsePinned(v))
+	for _, k := range keys {
 		fmt.Fprintln(w, k)
 	}
 	return nil
@@ -107,11 +108,18 @@ func parsePinned(s string) map[string]struct{} {
 	return m
 }
 
+// joinPinned serialises the pinned set as a sorted, comma-separated string so
+// that the stored value is deterministic regardless of map iteration order.
 func joinPinned(m map[string]struct{}) string {
+	return strings.Join(sortedKeys(m), ",")
+}
+
+// sortedKeys returns the keys of m in ascending alphabetical order.
+func sortedKeys(m map[string]struct{}) []string {
 	parts := make([]string, 0, len(m))
 	for k := range m {
 		parts = append(parts, k)
 	}
-	_ = os.Stderr // suppress unused import
-	return strings.Join(parts, ",")
+	sort.Strings(parts)
+	return parts
 }
