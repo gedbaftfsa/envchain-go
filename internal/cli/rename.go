@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/envchain/envchain-go/internal/store"
@@ -25,6 +26,11 @@ func CmdRename(st *store.Store, oldName, newName, passphrase string) error {
 	_, err = st.Load(newName, passphrase)
 	if err == nil {
 		return fmt.Errorf("rename: project %q already exists", newName)
+	}
+	// Only proceed if the error indicates the project was not found;
+	// any other error (e.g. I/O failure) should be surfaced.
+	if !errors.Is(err, store.ErrNotFound) {
+		return fmt.Errorf("rename: could not check project %q: %w", newName, err)
 	}
 
 	if err := st.Save(newName, passphrase, set); err != nil {
